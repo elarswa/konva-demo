@@ -109,7 +109,6 @@ class kdTree {
     var insertPosition = innerSearch(this.root, null),
       newNode,
       dimension;
-    console.log('🛑  insertPosition:', insertPosition);
     if (insertPosition === null) {
       this.root = new Node(point, 0, null);
       return;
