@@ -136,7 +136,18 @@ class kdTree {
         return null;
       }
 
-      if (node.obj === point) {
+      const dimsMatch = (() => {
+        let b = true;
+        this.dimensions.forEach(dim => {
+          if (node.obj[dim] !== point[dim]) {
+            b = false;
+            return;
+          }
+        });
+        return b;
+      })();
+
+      if (node.obj === point || dimsMatch) {
         return node;
       }
 
