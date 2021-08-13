@@ -24,6 +24,23 @@ class kdTree {
     this.nearest = this.nearest.bind(this);
     this.balanceFactor = this.balanceFactor.bind(this);
     this.count = this.count.bind(this);
+    this.getEntityPoints = this.getEntityPoints.bind(this);
+  }
+
+  //return all points with id === searchId
+  getEntityPoints(searchId, maxPoints = null) {
+    const matchedPoints = [];
+    const walk = node => {
+      if (maxPoints && matchedPoints.length >= maxPoints) return;
+      if (!node) return;
+      if (node && node.obj.id && node.obj.id === searchId)
+        matchedPoints.push(node.obj);
+      if (node.left) walk(node.left);
+      if (node.right) walk(node.right);
+      return;
+    };
+    walk(this.root);
+    return matchedPoints;
   }
 
   count() {
@@ -146,8 +163,12 @@ class kdTree {
         });
         return b;
       })();
+      const idMatch = (() => {
+        if (!point.id) return true;
+        return node.obj.id === point.id;
+      })();
 
-      if (node.obj === point || dimsMatch) {
+      if (dimsMatch && idMatch) {
         return node;
       }
 

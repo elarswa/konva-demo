@@ -1,11 +1,20 @@
 import { Stage, Layer, Rect, Group, Line } from 'react-konva';
 import { useRef, useState, useEffect } from 'react';
-import { flushSnapBoundary, rectPointsToVector } from './collisionUtils';
+import {
+  flushSnapBoundary,
+  rectPointsToVector,
+  getStageBoundPosition,
+  rectangleToKDNode,
+  parallelDistance,
+} from './collisionUtils';
 import kdTree from './KDTree';
+import worker_script from './workers/worker.worker';
+const worker = new Worker(worker_script);
 // import DxfDisplay from './components/konva/DxfDisplay';
 const width = 500;
 const height = width;
-const rectSize = 50;
+const rectWidth = 50;
+const rectHeight = 70;
 const drawGrid = () => {
   const lines = [];
   const spacer = 50;
@@ -27,32 +36,74 @@ function App() {
   const blueRef = useRef(null);
   const greenRef = useRef(null);
   const refs = [greyRef, blueRef, greenRef];
+  const [dragStart, setDragStart] = useState({});
 
-  const updateTreeWithBounds = (
-    pos,
-    selfRef,
-    refs,
-    stageWidth,
-    stageHeight
-  ) => {
-    const { width: rectWidth, height: rectHeight } = selfRef.current.attrs;
-    const oldRectPoints = rectPointsToVector(selfRef);
-    oldRectPoints?.forEach(point => tree.remove(point));
-    const rectPoints = rectPointsToVector(selfRef, pos);
-    rectPoints?.forEach(point => tree.insert(point));
-    console.log('🛑  tree:', tree.count());
-    const { x, y } = pos;
-    const newX =
-      x < 0 ? 0 : x > stageWidth - rectWidth ? stageWidth - rectWidth : x;
-    const newY =
-      y < 0 ? 0 : y > stageHeight - rectHeight ? stageHeight - rectHeight : y;
+  const onDragEndHandler = e => {
+    //remove old points
+    rectangleToKDNode(e.target, dragStart)?.forEach(point =>
+      tree.remove(point)
+    );
+    // add new position points
+    rectangleToKDNode(e.target, e.target._lastPos)?.forEach(point =>
+      tree.insert(point)
+    );
+    console.log('🛑  kd points count:', tree.count());
+    console.log('🛑  balanceFactor:', tree.balanceFactor());
 
-    return {
-      x: newX,
-      y: newY,
-    };
+    console.log(
+      '🛑  tree.nearest',
+      tree
+        .nearest(e.target._lastPos, 2)
+        .filter(([meta, distance]) => meta.id !== e.target.attrs.id)?.[0]?.[0]
+        ?.id
+    );
+    const nearestRef = refs.find(
+      ref =>
+        ref.current.attrs.id ===
+        tree
+          .nearest(e.target._lastPos, 2)
+          .filter(([meta, distance]) => meta.id !== e.target.attrs.id)?.[0]?.[0]
+          ?.id
+    );
+    const nearestPoints = rectPointsToVector(nearestRef);
+    const selfPoints = rectPointsToVector(e.target, e.target._lastPos);
+    if (nearestPoints && selfPoints) {
+      const nearTop = [nearestPoints[0], nearestPoints[1]];
+      const nearLeft = [nearestPoints[0], nearestPoints[2]];
+      const nearRight = [nearestPoints[1], nearestPoints[3]];
+      const nearBot = [nearestPoints[2], nearestPoints[3]];
+
+      const selfTop = [selfPoints[0], selfPoints[1]];
+      const selfLeft = [selfPoints[0], selfPoints[2]];
+      const selfRight = [selfPoints[1], selfPoints[3]];
+      const selfBot = [selfPoints[2], selfPoints[3]];
+
+      const distances = [];
+      distances.push(parallelDistance(nearTop, selfBot));
+      distances.push(parallelDistance(nearLeft, selfRight));
+      distances.push(parallelDistance(nearRight, selfLeft));
+      distances.push(parallelDistance(nearBot, selfTop));
+      // console.log('🛑  distances:', distances);
+      // console.log('🛑  Math.min(distances):', Math.min(...distances));
+    }
   };
 
+  const onDragStartHandler = e => {
+    setDragStart(e.target.absolutePosition());
+  };
+
+  const clickRect = who => {
+    worker.postMessage({ msg: 'echo', str: who });
+    // const rectPoints = rectPointsToVector(greyRef);
+    // console.log('🛑  rectPoints:', rectPoints);
+    // const dist = parallelDistance(
+    //   [rectPoints[0], rectPoints[1]],
+    //   [rectPoints[2], rectPoints[3]]
+    // );
+    // console.log('🛑  dist:', dist);
+  };
+
+  worker.onmessage = m => console.log('Worker says:', m.data);
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       {/* <Stage width={window.innerWidth} height={window.innerHeight}> */}
@@ -71,17 +122,20 @@ function App() {
             {/* <DxfDisplay /> */}
             <Rect
               dragBoundFunc={pos =>
-                updateTreeWithBounds(pos, greyRef, refs, width, height)
+                getStageBoundPosition(pos, greyRef, width, height)
               }
               ref={greyRef}
               x={50}
               y={100}
-              width={rectSize}
-              height={rectSize}
+              width={rectWidth}
+              height={rectHeight}
               fill="grey"
               stroke="black"
               id={1}
+              onDragEnd={onDragEndHandler}
+              onDragStart={onDragStartHandler}
               draggable
+              onClick={() => clickRect('grey')}
             />
             <Rect
               dragBoundFunc={pos =>
@@ -90,12 +144,15 @@ function App() {
               ref={blueRef}
               x={150}
               y={100}
-              width={rectSize}
-              height={rectSize}
+              width={rectWidth}
+              height={rectHeight}
               fill="blue"
               stroke="black"
               id={2}
+              onDragEnd={onDragEndHandler}
+              onDragStart={onDragStartHandler}
               draggable
+              onClick={() => clickRect('blue')}
             />
             <Rect
               dragBoundFunc={pos =>
@@ -104,11 +161,14 @@ function App() {
               ref={greenRef}
               x={250}
               y={100}
-              width={rectSize}
-              height={rectSize}
+              width={rectWidth}
+              height={rectHeight}
               fill="green"
               stroke="black"
               id={3}
+              onDragEnd={onDragEndHandler}
+              onDragStart={onDragStartHandler}
+              onClick={() => clickRect('green')}
               draggable
             />
           </Group>

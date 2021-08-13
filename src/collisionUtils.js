@@ -23,6 +23,17 @@ export const flushSnapBoundary = (
   // prevent entity collision
   const { x, y } = getBoundedPos(selfBounds, allBounds);
   // prevent boundary collision
+  return getStageBoundPosition({ x, y }, selfRef, stageWidth, stageHeight);
+};
+
+export const getStageBoundPosition = (
+  pos,
+  selfRef,
+  stageWidth,
+  stageHeight
+) => {
+  const { width: rectWidth, height: rectHeight } = selfRef.current.attrs;
+  const { x, y } = pos;
   const newX =
     x < 0 ? 0 : x > stageWidth - rectWidth ? stageWidth - rectWidth : x;
   const newY =
@@ -34,7 +45,8 @@ export const flushSnapBoundary = (
   };
 };
 
-const getRectBound = ref => {
+//take in a react ref
+const getRectBoundRef = ref => {
   if (!ref) return;
   const { width: w, height: h, rotation } = ref.current.attrs;
   const { x, y } = ref.current.absolutePosition();
@@ -49,10 +61,26 @@ const getRectBound = ref => {
   };
 };
 
+//take in the event target
+const getRectBound = target => {
+  if (!target) return;
+  const { width: w, height: h, rotation } = target.attrs;
+  const { x, y } = target.absolutePosition();
+  return {
+    xMin: x,
+    yMin: y,
+    xMax: x + w,
+    yMax: y + h,
+    rot: rotation,
+    w: w,
+    h: h,
+  };
+};
+
 export const getAllBoundsWithId = arr => {
   const res = [];
   arr.forEach(ref => {
-    const bounds = getRectBound(ref);
+    const bounds = getRectBoundRef(ref);
     res.push({ ...bounds, id: ref.current.attrs.id });
   });
   return res;
@@ -140,8 +168,9 @@ export const rotateTransform = (point, about, degrees) => {
   return [rX + aboutX, rY + aboutY];
 };
 
-export const rectPointsToVector = (ref, currentPos) => {
-  if (!ref) return null;
+// use with event.target or react ref
+export const rectPointsToVector = (target, currentPos) => {
+  if (!target) return null;
   const {
     width,
     height,
@@ -149,22 +178,22 @@ export const rectPointsToVector = (ref, currentPos) => {
     id,
     x: refx,
     y: refy,
-  } = ref.current.attrs;
+  } = target?.current?.attrs || target?.attrs || null;
   const x = currentPos?.x;
   const y = currentPos?.y;
   //   if (!width || !height || !refx || !refy) return null;
-  const { x: point2x, y: point2y } = rotateTransform(
-    [x ?? refx + width, y ?? refy],
-    [x ?? refx, y],
-    rotation
-  );
-  const { x: point3x, y: point3y } = rotateTransform(
-    [x ?? refx, y ?? refy + height],
+  const [point2x, point2y] = rotateTransform(
+    [(x ?? refx) + width, y ?? refy],
     [x ?? refx, y ?? refy],
     rotation
   );
-  const { x: point4x, y: point4y } = rotateTransform(
-    [x ?? refx + width, y ?? refy + height],
+  const [point3x, point3y] = rotateTransform(
+    [x ?? refx, (y ?? refy) + height],
+    [x ?? refx, y ?? refy],
+    rotation
+  );
+  const [point4x, point4y] = rotateTransform(
+    [(x ?? refx) + width, (y ?? refy) + height],
     [x ?? refx, y ?? refy],
     rotation
   );
@@ -174,4 +203,52 @@ export const rectPointsToVector = (ref, currentPos) => {
     { x: point3x, y: point3y, id },
     { x: point4x, y: point4y, id },
   ];
+};
+
+// returns single kd node data with x and y at the rectangle center point
+export const rectangleToKDNode = (target, currentPos) => {
+  if (!target) return null;
+  const {
+    width,
+    height,
+    rotation = 0,
+    id,
+    x: refx,
+    y: refy,
+  } = target?.current?.attrs || target?.attrs || null;
+  const x = currentPos?.x;
+  const y = currentPos?.y;
+  const centerX = ((x ?? refx) + (x ?? refx) + width) / 2;
+  const centerY = ((y ?? refy) + (y ?? refy) + height) / 2;
+  const [finalX, finalY] = rotateTransform(
+    [centerX, centerY],
+    [x ?? refx, y ?? refy],
+    rotation
+  );
+  return [{ x: finalX, y: finalY, id, rotation, width, height }];
+};
+
+// pointArr has two points to denote a line with { x: ..., y: ...}
+export const parallelDistance = (pointArr1, pointArr2) => {
+  const a1 = pointArr1[1].y - pointArr1[0].y;
+  const b1 = pointArr1[0].x - pointArr1[1].x;
+  let c1 = a1 * pointArr1[0].x + b1 * pointArr1[0].y;
+
+  const a2 = pointArr2[1].y - pointArr2[0].y;
+  const b2 = pointArr2[0].x - pointArr2[1].x;
+  let c2 = a2 * pointArr2[0].x + b2 * pointArr2[0].y;
+
+  const determinant = a1 * b2 - a2 * b1;
+  if (determinant === 0) {
+    // solve for distance
+    if (a1 < a2) {
+      c2 = a2 / a1;
+    } else if (a1 > a2) {
+      c1 = a1 / a2;
+    }
+    return Math.abs((c2 - c1) / (a1 ** 2 + b1 ** 2) ** 0.5);
+  } else {
+    console.log('lines are not parallel');
+    return null;
+  }
 };
