@@ -6,6 +6,7 @@ import {
   getStageBoundPosition,
   rectangleToKDNode,
   parallelDistance,
+  altBoundFunc,
 } from './collisionUtils';
 import kdTree from './KDTree';
 import worker_script from './workers/worker.worker';
@@ -32,6 +33,7 @@ const getTwoPointsDistances = (pointA, pointB) => {
 const tree = new kdTree([], getTwoPointsDistances, ['x', 'y']);
 
 function App() {
+  const stageRef = useRef(null);
   const greyRef = useRef(null);
   const blueRef = useRef(null);
   const greenRef = useRef(null);
@@ -47,16 +49,16 @@ function App() {
     rectangleToKDNode(e.target, e.target._lastPos)?.forEach(point =>
       tree.insert(point)
     );
-    console.log('🛑  kd points count:', tree.count());
-    console.log('🛑  balanceFactor:', tree.balanceFactor());
+    // console.log('🛑  kd points count:', tree.count());
+    // console.log('🛑  balanceFactor:', tree.balanceFactor());
 
-    console.log(
-      '🛑  tree.nearest',
-      tree
-        .nearest(e.target._lastPos, 2)
-        .filter(([meta, distance]) => meta.id !== e.target.attrs.id)?.[0]?.[0]
-        ?.id
-    );
+    // console.log(
+    //   '🛑  tree.nearest',
+    //   tree
+    //     .nearest(e.target._lastPos, 2)
+    //     .filter(([meta, distance]) => meta.id !== e.target.attrs.id)?.[0]?.[0]
+    //     ?.id
+    // );
     const nearestRef = refs.find(
       ref =>
         ref.current.attrs.id ===
@@ -93,7 +95,7 @@ function App() {
   };
 
   const clickRect = who => {
-    worker.postMessage({ msg: 'echo', str: who });
+    // worker.postMessage({ msg: 'echo', str: who });
     // const rectPoints = rectPointsToVector(greyRef);
     // console.log('🛑  rectPoints:', rectPoints);
     // const dist = parallelDistance(
@@ -107,8 +109,21 @@ function App() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       {/* <Stage width={window.innerWidth} height={window.innerHeight}> */}
-      <Stage width={width} height={height} style={{ backgroundColor: 'white' }}>
+      <Stage
+        ref={stageRef}
+        width={width}
+        height={height}
+        style={{ backgroundColor: 'white' }}
+      >
         <Layer>{drawGrid()}</Layer>
+        <Layer>
+          <Line
+            points={[50, 50, 150, 50]}
+            stroke={'blue'}
+            strokeWidth={3}
+            rotation={10}
+          />
+        </Layer>
         <Layer>
           <Rect
             x={0}
@@ -122,7 +137,14 @@ function App() {
             {/* <DxfDisplay /> */}
             <Rect
               dragBoundFunc={pos =>
-                getStageBoundPosition(pos, greyRef, width, height)
+                altBoundFunc(
+                  pos,
+                  greyRef,
+                  refs,
+                  width,
+                  height,
+                  stageRef?.current.getPointerPosition()
+                )
               }
               ref={greyRef}
               x={50}
@@ -145,7 +167,7 @@ function App() {
               x={150}
               y={100}
               width={rectWidth}
-              height={rectHeight}
+              height={rectHeight + 40}
               fill="blue"
               stroke="black"
               id={2}
