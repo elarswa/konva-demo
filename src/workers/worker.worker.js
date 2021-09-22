@@ -5,15 +5,27 @@ const workercode = () => {
     return [u1, x1];
   };
 
-  const adj = ['good', 'bad', 'ugly', 'pretty', 'hot', 'bland', 'dumb', 'fat'];
-
+  const adj = [
+    'good',
+    'bad',
+    'ugly',
+    'pretty',
+    'hot',
+    'bland',
+    'dumb',
+    'fat',
+    'lumpy',
+  ];
+  let seed = 1;
   onmessage = async event => {
     if (event && event.data && event.data.msg === 'echo') {
       const { str } = event.data;
 
       postMessage(`Someone clicked the ${str} rectangle!`);
       setTimeout(() => {
-        const [val] = myRand(12, 1, 20, new Date().getMilliseconds());
+        // const [val] = myRand(12, 1, 20, new Date().getMilliseconds());
+        const [val, newSeed] = myRand(4, 1, 9, seed);
+        seed = newSeed;
         const randIndex = Math.floor(val * adj.length);
         postMessage(`⚠️ ${str} is a ${adj[randIndex]} color`);
       }, 2000);
