@@ -47,16 +47,16 @@ export const getStageBoundPosition = (
 //take in a react ref
 const getRectBoundRef = ref => {
   if (!ref) return;
-  const { width: w, height: h, rotation } = ref.current.attrs;
-  const { x, y } = ref.current.absolutePosition();
+  const { rotation } = ref.current.attrs;
+  const box = ref.current.getClientRect();
   return {
-    xMin: x,
-    yMin: y,
-    xMax: x + w,
-    yMax: y + h,
+    xMin: box.x,
+    yMin: box.y,
+    xMax: box.x + box.width,
+    yMax: box.y + box.height,
     rot: rotation,
-    w: w,
-    h: h,
+    w: box.width,
+    h: box.height,
   };
 };
 
@@ -250,7 +250,7 @@ export const parallelDistance = (pointArr1, pointArr2) => {
   }
 };
 
-export const IsPointInPolygon = (polygonArray, point) => {
+export const isPointInPolygon = (polygonArray, point) => {
   let inside = false;
   const [pointX, pointY] = point;
   for (let i = 0; i < polygonArray.length - 1; i++) {
@@ -258,7 +258,7 @@ export const IsPointInPolygon = (polygonArray, point) => {
     const p1Y = polygonArray[i][1];
     const p2X = polygonArray[i + 1][0];
     const p2Y = polygonArray[i + 1][1];
-    if (p1X === pointX && p1Y === pointY) return true;
+    // if (p1X === pointX && p1Y === pointY) return true;
     if ((p1Y < pointY && p2Y >= pointY) || (p2Y < pointY && p1Y >= pointY)) {
       // this edge is crossing the horizontal ray of testpoint
       if (p1X + ((pointY - p1Y) / (p2Y - p1Y)) * (p2X - p1X) < pointX) {
@@ -270,7 +270,7 @@ export const IsPointInPolygon = (polygonArray, point) => {
   return inside;
 };
 
-export const altBoundFunc = (
+export const slidingBoundFunc = (
   pos,
   selfRef,
   refs,
@@ -278,20 +278,18 @@ export const altBoundFunc = (
   stageHeight,
   mousePosition
 ) => {
-  const {
-    width: rectWidth,
-    height: rectHeight,
-    id: selfId,
-  } = selfRef.current.attrs;
+  const { id: selfId } = selfRef.current.attrs;
+  const self = selfRef.current.getClientRect();
   const allBounds = getAllBoundsWithId(refs);
   const [selfBounds] = allBounds.splice(
     allBounds.findIndex(obj => obj.id === selfId),
     1
   );
+
   selfBounds.xMin = pos.x;
   selfBounds.yMin = pos.y;
-  selfBounds.yMax = pos.y + rectHeight;
-  selfBounds.xMax = pos.x + rectWidth;
+  selfBounds.yMax = pos.y + self.height;
+  selfBounds.xMax = pos.x + self.width;
   // prevent entity collision
   const { x, y } = slidingBounds(
     selfBounds,
@@ -317,14 +315,20 @@ export const boundsToPolygon = (bounds, offset = 0) => {
 export const slidingBounds = (selfBounds, allBounds, mousePoint, pos) => {
   const selfPoly = boundsToPolygon(selfBounds);
   let collide = false;
-  let collidePoint = [];
   let collideRect = [];
-  for (let bound of allBounds) {
+  for (const bound of allBounds) {
     const boundPoly = boundsToPolygon(bound);
-    for (let point of selfPoly) {
-      if (IsPointInPolygon(boundPoly, point)) {
+    for (const point of boundPoly) {
+      if (isPointInPolygon(selfPoly, point)) {
         collide = true;
-        collidePoint = point;
+        collideRect = boundPoly;
+        break;
+      }
+    }
+    if (collide) break;
+    for (const point of selfPoly) {
+      if (isPointInPolygon(boundPoly, point)) {
+        collide = true;
         collideRect = boundPoly;
         break;
       }
@@ -345,22 +349,20 @@ export const slidingBounds = (selfBounds, allBounds, mousePoint, pos) => {
     possibleEdgePoints.push(
       closestPointOnEdge(collideRect[3], collideRect[0], mousePoint) //left
     );
+    // console.log('🛑  possibleEdgePoints:', possibleEdgePoints);
     const minDist = Math.min(...possibleEdgePoints.map(obj => obj.dist));
     const closestEdgePoint = possibleEdgePoints.find(
       obj => obj.dist === minDist
     ).point;
+    // console.log('🛑  closestEdgePoint:', closestEdgePoint);
     const width = selfBounds.xMax - selfBounds.xMin;
     const height = selfBounds.yMax - selfBounds.yMin;
-    // const final = {
-    //   x: selfBounds.xMin + (closestEdgePoint[0] - collidePoint[0]),
-    //   y: selfBounds.yMin + (closestEdgePoint[1] - collidePoint[1]),
-    // };
     if (
       closestEdgePoint[0] === possibleEdgePoints[0].point[0] &&
       closestEdgePoint[1] === possibleEdgePoints[0].point[1]
     ) {
       //top
-      console.log('⚠️ top');
+      // console.log('⚠️ top');
       return {
         x: selfBounds.xMin,
         y: collideRect[0][1] - height,
@@ -371,7 +373,7 @@ export const slidingBounds = (selfBounds, allBounds, mousePoint, pos) => {
       closestEdgePoint[1] === possibleEdgePoints[1].point[1]
     ) {
       //right
-      console.log('⚠️ right');
+      // console.log('⚠️ right');
       return {
         x: collideRect[1][0],
         y: selfBounds.yMin,
@@ -382,7 +384,7 @@ export const slidingBounds = (selfBounds, allBounds, mousePoint, pos) => {
       closestEdgePoint[1] === possibleEdgePoints[2].point[1]
     ) {
       //bottom
-      console.log('⚠️ bottom');
+      // console.log('⚠️ bottom');
       return {
         x: selfBounds.xMin,
         y: collideRect[2][1],
@@ -393,17 +395,12 @@ export const slidingBounds = (selfBounds, allBounds, mousePoint, pos) => {
       closestEdgePoint[1] === possibleEdgePoints[3].point[1]
     ) {
       //left
-      console.log('⚠️ left');
+      // console.log('⚠️ left');
       return {
         x: collideRect[0][0] - width,
         y: selfBounds.yMin,
       };
     }
-    // will not happen
-    // return {
-    //   x: final.x,
-    //   y: final.y,
-    // };
   }
   return { x: selfBounds.xMin, y: selfBounds.yMin };
 };
@@ -425,4 +422,102 @@ export const twoPointDist = (point1, point2) => {
   const [x1, y1] = point1;
   const [x2, y2] = point2;
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+};
+
+export const safePointBoundFunc = (
+  pos,
+  selfRef,
+  refs,
+  stageWidth,
+  stageHeight,
+  mousePosition,
+  safePoints
+) => {
+  const { id: selfId } = selfRef.current.attrs;
+  const self = selfRef.current.getClientRect();
+  const allBounds = getAllBoundsWithId(refs);
+  const [selfBounds] = allBounds.splice(
+    allBounds.findIndex(obj => obj.id === selfId),
+    1
+  );
+
+  selfBounds.xMin = pos.x;
+  selfBounds.yMin = pos.y;
+  selfBounds.yMax = pos.y + self.height;
+  selfBounds.xMax = pos.x + self.width;
+  const filterSafePoints = safePoints.filter(obj => obj.id !== selfId);
+  // prevent entity collision
+  const newPos = safePointBounds(
+    selfBounds,
+    allBounds,
+    [mousePosition.x, mousePosition.y],
+    filterSafePoints
+  );
+  // prevent boundary collision
+  return getStageBoundPosition(newPos, selfRef, stageWidth, stageHeight);
+};
+
+export const safePointBounds = (
+  selfBounds,
+  allBounds,
+  mousePoint,
+  otherSafePoints
+) => {
+  for (const bound of allBounds) {
+    const boundPoly = boundsToPolygon(bound);
+    otherSafePoints = otherSafePoints.filter(
+      obj => !isPointInPolygon(boundPoly, obj.point)
+    );
+  }
+  const selfPoly = boundsToPolygon(selfBounds);
+  let collide = false;
+  let collidePoint = [];
+  for (const bound of allBounds) {
+    const boundPoly = boundsToPolygon(bound);
+    for (const point of boundPoly) {
+      if (isPointInPolygon(selfPoly, point)) {
+        collide = true;
+        collidePoint = point; // their point in mine, pick closest actual point on mine to their collide point
+        break;
+      }
+    }
+    if (collide) break;
+    for (const point of selfPoly) {
+      if (isPointInPolygon(boundPoly, point)) {
+        collide = true;
+        collidePoint = point; // my point in theirs, use my point
+        break;
+      }
+    }
+    if (collide) break;
+  }
+  if (collide) {
+    otherSafePoints.forEach(obj => {
+      obj.dist = twoPointDist(obj.point, mousePoint);
+    });
+    const shiftPoint = pickClosestPoint(selfPoly, collidePoint);
+
+    const minDist = Math.min(...otherSafePoints.map(obj => obj.dist));
+    const bestPoint = otherSafePoints.find(obj => obj.dist === minDist).point;
+    const shiftDistance = {
+      x: bestPoint[0] - shiftPoint[0],
+      y: bestPoint[1] - shiftPoint[1],
+    };
+    return {
+      x: selfBounds.xMin + shiftDistance.x,
+      y: selfBounds.yMin + shiftDistance.y,
+    };
+  }
+  return { x: selfBounds.xMin, y: selfBounds.yMin };
+};
+
+export const pickClosestPoint = (fromPoints = [], toPoint) => {
+  const distArray = [];
+  fromPoints.forEach(point => {
+    distArray.push(twoPointDist(point, toPoint));
+  });
+  const minDist = Math.min(...distArray);
+  const bestPointIndex = distArray.indexOf(minDist);
+  if (bestPointIndex < 0) return fromPoints[0];
+  return fromPoints[bestPointIndex];
 };

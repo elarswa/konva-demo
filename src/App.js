@@ -6,7 +6,8 @@ import {
   getStageBoundPosition,
   rectangleToKDNode,
   parallelDistance,
-  altBoundFunc,
+  slidingBoundFunc,
+  safePointBoundFunc,
 } from './collisionUtils';
 import kdTree from './KDTree';
 import worker_script from './workers/worker.worker';
@@ -37,8 +38,12 @@ function App() {
   const greyRef = useRef(null);
   const blueRef = useRef(null);
   const greenRef = useRef(null);
-  const refs = [greyRef, blueRef, greenRef];
+  const red1Ref = useRef(null);
+  const red2Ref = useRef(null);
+  const polyGroupRef = useRef(null);
+  const refs = [greyRef, blueRef, greenRef, polyGroupRef];
   const [dragStart, setDragStart] = useState({});
+  const [safePoints, setSafePoints] = useState([]);
 
   const onDragEndHandler = e => {
     //remove old points
@@ -93,6 +98,73 @@ function App() {
   const onDragStartHandler = e => {
     setDragStart(e.target.absolutePosition());
   };
+  const getSafePoints = () => {
+    const offset = 5; //min of 1
+    const points = [];
+    refs.forEach(ref => {
+      if (!ref?.current) return [];
+      const box = ref.current.getClientRect(); // x, y, width, height
+      const xMin = box.x;
+      const yMin = box.y;
+      const xMax = box.x + box.width;
+      const yMax = box.y + box.height;
+      const xMid = (xMax - xMin) / 2 + xMin;
+      const yMid = (yMax - yMin) / 2 + yMin;
+      points.push({
+        point: [xMin - offset, yMin],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMin - offset, yMin - offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMin, yMin - offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({ point: [xMid, yMin - offset], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMax, yMin - offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMax + offset, yMin - offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMax + offset, yMin],
+        id: ref.current.attrs.id,
+      });
+      points.push({ point: [xMax + offset, yMid], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMax + offset, yMax],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMax + offset, yMax + offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMax, yMax + offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({ point: [xMid, yMax + offset], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMin, yMax + offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMin - offset, yMax + offset],
+        id: ref.current.attrs.id,
+      });
+      points.push({
+        point: [xMin - offset, yMax],
+        id: ref.current.attrs.id,
+      });
+      points.push({ point: [xMin - offset, yMid], id: ref.current.attrs.id }); //mid
+    });
+    return points;
+  };
 
   const clickRect = who => {
     // worker.postMessage({ msg: 'echo', str: who });
@@ -104,7 +176,9 @@ function App() {
     // );
     // console.log('🛑  dist:', dist);
   };
-
+  const onDragMoveHandler = () => {
+    setSafePoints(getSafePoints());
+  };
   worker.onmessage = m => console.log('Worker says:', m.data);
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -117,14 +191,6 @@ function App() {
       >
         <Layer>{drawGrid()}</Layer>
         <Layer>
-          <Line
-            points={[50, 50, 150, 50]}
-            stroke={'blue'}
-            strokeWidth={3}
-            rotation={10}
-          />
-        </Layer>
-        <Layer>
           <Rect
             x={0}
             y={0}
@@ -133,11 +199,11 @@ function App() {
             stroke="black"
             fillEnabled={false}
           />
-          <Group x={10} y={10}>
+          <Group>
             {/* <DxfDisplay /> */}
             <Rect
               dragBoundFunc={pos =>
-                altBoundFunc(
+                slidingBoundFunc(
                   pos,
                   greyRef,
                   refs,
@@ -146,14 +212,14 @@ function App() {
                   stageRef?.current.getPointerPosition()
                 )
               }
+              onDragMove={onDragMoveHandler}
               ref={greyRef}
               x={50}
               y={100}
               width={rectWidth}
               height={rectHeight}
               fill="grey"
-              stroke="black"
-              id={1}
+              id={'1'}
               onDragEnd={onDragEndHandler}
               onDragStart={onDragStartHandler}
               draggable
@@ -169,16 +235,24 @@ function App() {
               width={rectWidth}
               height={rectHeight + 40}
               fill="blue"
-              stroke="black"
-              id={2}
+              id={'2'}
               onDragEnd={onDragEndHandler}
               onDragStart={onDragStartHandler}
+              onDragMove={onDragMoveHandler}
               draggable
               onClick={() => clickRect('blue')}
             />
             <Rect
               dragBoundFunc={pos =>
-                flushSnapBoundary(pos, greenRef, refs, width, height)
+                safePointBoundFunc(
+                  pos,
+                  greenRef,
+                  refs,
+                  width,
+                  height,
+                  stageRef?.current.getPointerPosition(),
+                  safePoints
+                )
               }
               ref={greenRef}
               x={250}
@@ -186,13 +260,72 @@ function App() {
               width={rectWidth}
               height={rectHeight}
               fill="green"
-              stroke="black"
-              id={3}
+              id={'3'}
               onDragEnd={onDragEndHandler}
               onDragStart={onDragStartHandler}
+              onDragMove={onDragMoveHandler}
               onClick={() => clickRect('green')}
               draggable
             />
+          </Group>
+          <Group
+            x={250}
+            y={200}
+            ref={polyGroupRef}
+            dragBoundFunc={pos =>
+              slidingBoundFunc(
+                pos,
+                polyGroupRef,
+                refs,
+                width,
+                height,
+                stageRef?.current.getPointerPosition()
+              )
+            }
+            onDragMove={onDragMoveHandler}
+            draggable
+            id={'6'}
+          >
+            <Rect
+              // ref={red1Ref}
+              x={0}
+              y={0}
+              width={20}
+              height={20}
+              fill="red"
+              id={'4'}
+              onDragEnd={onDragEndHandler}
+              onDragStart={onDragStartHandler}
+              onClick={() => clickRect('red1')}
+            />
+            <Rect
+              // ref={red2Ref}
+              x={40}
+              y={30}
+              width={20}
+              height={20}
+              fill="red"
+              id={'5'}
+              onDragEnd={onDragEndHandler}
+              onDragStart={onDragStartHandler}
+              onClick={() => clickRect('red2')}
+            />
+          </Group>
+          <Group>
+            {safePoints.map(obj => {
+              const [x, y] = obj.point;
+              return (
+                <Rect
+                  x={x}
+                  y={y}
+                  width={2}
+                  height={2}
+                  offsetX={1}
+                  offsetY={1}
+                  fill="purple"
+                />
+              );
+            })}
           </Group>
         </Layer>
       </Stage>
