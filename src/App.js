@@ -110,58 +110,87 @@ function App() {
       const yMax = box.y + box.height;
       const xMid = (xMax - xMin) / 2 + xMin;
       const yMid = (yMax - yMin) / 2 + yMin;
+      // rectangle corners from top left clockwise: a b c d
       points.push({
         point: [xMin - offset, yMin],
         id: ref.current.attrs.id,
+        flags: 'a',
       });
       points.push({
         point: [xMin - offset, yMin - offset],
         id: ref.current.attrs.id,
+        flags: 'a',
       });
       points.push({
         point: [xMin, yMin - offset],
         id: ref.current.attrs.id,
+        flags: 'a',
       });
-      points.push({ point: [xMid, yMin - offset], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMid, yMin - offset],
+        id: ref.current.attrs.id,
+        flags: 'ab',
+      }); // mid
       points.push({
         point: [xMax, yMin - offset],
         id: ref.current.attrs.id,
+        flags: 'b',
       });
       points.push({
         point: [xMax + offset, yMin - offset],
         id: ref.current.attrs.id,
+        flags: 'b',
       });
       points.push({
         point: [xMax + offset, yMin],
         id: ref.current.attrs.id,
+        flags: 'b',
       });
-      points.push({ point: [xMax + offset, yMid], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMax + offset, yMid],
+        id: ref.current.attrs.id,
+        flags: 'bc',
+      }); // mid
       points.push({
         point: [xMax + offset, yMax],
         id: ref.current.attrs.id,
+        flags: 'c',
       });
       points.push({
         point: [xMax + offset, yMax + offset],
         id: ref.current.attrs.id,
+        flags: 'c',
       });
       points.push({
         point: [xMax, yMax + offset],
         id: ref.current.attrs.id,
+        flags: 'c',
       });
-      points.push({ point: [xMid, yMax + offset], id: ref.current.attrs.id }); // mid
+      points.push({
+        point: [xMid, yMax + offset],
+        id: ref.current.attrs.id,
+        flags: 'cd',
+      }); // mid
       points.push({
         point: [xMin, yMax + offset],
         id: ref.current.attrs.id,
+        flags: 'd',
       });
       points.push({
         point: [xMin - offset, yMax + offset],
         id: ref.current.attrs.id,
+        flags: 'd',
       });
       points.push({
         point: [xMin - offset, yMax],
         id: ref.current.attrs.id,
+        flags: 'd',
       });
-      points.push({ point: [xMin - offset, yMid], id: ref.current.attrs.id }); //mid
+      points.push({
+        point: [xMin - offset, yMid],
+        id: ref.current.attrs.id,
+        flags: 'da',
+      }); //mid
     });
     return points;
   };

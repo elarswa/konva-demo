@@ -474,18 +474,19 @@ export const safePointBounds = (
   let collidePoint = [];
   for (const bound of allBounds) {
     const boundPoly = boundsToPolygon(bound);
-    for (const point of boundPoly) {
-      if (isPointInPolygon(selfPoly, point)) {
-        collide = true;
-        collidePoint = point; // their point in mine, pick closest actual point on mine to their collide point
-        break;
-      }
-    }
-    if (collide) break;
     for (const point of selfPoly) {
       if (isPointInPolygon(boundPoly, point)) {
         collide = true;
         collidePoint = point; // my point in theirs, use my point
+        break;
+      }
+    }
+
+    if (collide) break;
+    for (const point of boundPoly) {
+      if (isPointInPolygon(selfPoly, point)) {
+        collide = true;
+        collidePoint = point; // their point in mine, pick closest actual point on mine to their collide point
         break;
       }
     }
@@ -495,13 +496,13 @@ export const safePointBounds = (
     otherSafePoints.forEach(obj => {
       obj.dist = twoPointDist(obj.point, mousePoint);
     });
-    const shiftPoint = pickClosestPoint(selfPoly, collidePoint);
 
     const minDist = Math.min(...otherSafePoints.map(obj => obj.dist));
-    const bestPoint = otherSafePoints.find(obj => obj.dist === minDist).point;
+    const bestPoint = otherSafePoints.find(obj => obj.dist === minDist);
+    const shiftPoint = pickClosestPoint(selfPoly, collidePoint, bestPoint);
     const shiftDistance = {
-      x: bestPoint[0] - shiftPoint[0],
-      y: bestPoint[1] - shiftPoint[1],
+      x: bestPoint.point[0] - shiftPoint[0],
+      y: bestPoint.point[1] - shiftPoint[1],
     };
     return {
       x: selfBounds.xMin + shiftDistance.x,
@@ -511,13 +512,48 @@ export const safePointBounds = (
   return { x: selfBounds.xMin, y: selfBounds.yMin };
 };
 
-export const pickClosestPoint = (fromPoints = [], toPoint) => {
+export const pickClosestPoint = (
+  fromPoints = [],
+  toPoint,
+  bestPoint = { point: [], id: '', flags: '' }
+) => {
+  const fromWithFlags = [];
+  fromWithFlags.push({ point: fromPoints[0], flags: 'a' });
+  fromWithFlags.push({ point: fromPoints[1], flags: 'b' });
+  fromWithFlags.push({ point: fromPoints[2], flags: 'c' });
+  fromWithFlags.push({ point: fromPoints[3], flags: 'd' });
+  const validPoints = removeInvalidPoints(fromWithFlags, bestPoint.flags);
   const distArray = [];
-  fromPoints.forEach(point => {
-    distArray.push(twoPointDist(point, toPoint));
+  validPoints.forEach(point => {
+    distArray.push(twoPointDist(point.point, toPoint));
   });
+
   const minDist = Math.min(...distArray);
   const bestPointIndex = distArray.indexOf(minDist);
-  if (bestPointIndex < 0) return fromPoints[0];
-  return fromPoints[bestPointIndex];
+  // console.log('🛑  bestSafePoint:', bestPoint);
+  // console.log('🛑  validPoints[bestPointIndex]:', validPoints[bestPointIndex]);
+  if (bestPointIndex < 0) return validPoints[0].point;
+  return validPoints[bestPointIndex].point;
+};
+
+const removeInvalidPoints = (flaggedPoints = [], ignoreFlags = '') => {
+  const validIndexes = [];
+  // console.log('🛑  ignoreFlags:', ignoreFlags);
+  flaggedPoints.forEach((obj, index) => {
+    // console.log(
+    //   '🛑  !ignoreFlags.includes(obj.flags):',
+    //   !ignoreFlags.includes(obj.flags)
+    // );
+    if (!ignoreFlags.includes(obj.flags)) {
+      // console.log(`⚠️ Here ${index}`);
+      validIndexes.push(index);
+    }
+  });
+  const validFlaggedPoints = [];
+  // console.log('🛑  validIndexes:', validIndexes);
+  for (const index of validIndexes) {
+    validFlaggedPoints.push(flaggedPoints[index]);
+  }
+  // console.log('🛑  validFlaggedPoints:', validFlaggedPoints);
+  return validFlaggedPoints;
 };
